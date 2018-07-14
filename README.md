@@ -98,7 +98,7 @@ The CAN Commander has a built in RP1210 compliant vehicle diagnostics adapter ca
 
 The eDPA is connected to the USB port on the CAN Commander through a USB hub. This means both the eDPA and the BeagleBone are available with the USB connection. The eDPA is not available through the Ethernet port. 
 
-DG Tech has two tools for the RP1210 device: 1) the Adapter Validation Tool and 2) DG Diagnostics. The Adapter Validation Tool helps troubleshoot driver and connectivity issues for any RP1210 diagnostics adapter. The DG Diagnositics program is a fully functional standards compliant (J1939 and J1587) diagnostics program for the DPA family of products. 
+DG Tech has two tools for the RP1210 device: 1) the Adapter Validation Tool and 2) DG Diagnostics. The Adapter Validation Tool helps troubleshoot driver and connectivity issues for any RP1210 diagnostics adapter. The DG Diagnostics program is a fully functional standards compliant (J1939 and J1587) diagnostics program for the DPA family of products. 
 
 To enable the connection of the eDPA to the vehicle network, the internal CANCommander relays need to be activated to route the CAN traffic to the eDPA. This is done by pulling a GPIO pin high to drive the solenoid responsible for closing the relay. 
 
@@ -185,7 +185,27 @@ sudo cp ethled.sh /usr/local/bin/
 The LEDs  on the vehicle interface side are not programmed to mean anything. They are connected to a supplemental microprocessor designed to run a screen on the Forensic Link Adapter. Without the screen and the buttons, the additional microprocessor is not needed and it will light the LEDs arbitrarily during boot. Typically the LEDs will settle on red.
 
 ## CAN Forwarding
-A script called `bridgeCANs.sh` uses the bridge features of can-utils.  If an error  `bridge write: No buffer space available` occurs, then  it is likely one of the CAN channels is not valid.
-
+A script called `bridgeCANs.sh` uses the bridge features of can-utils.  If an error  `bridge write: No buffer space available` occurs, then  there was an issue forwarding the traffic from one side to another. Check `canbusload`.
+```
+candump -s2 -D -d -B can0 can1&
+candump -s2 -D -d -B can1 can0&
+```
+After these commands, both CAN channels should be the same. 
+To learn about the command line switches, simply type `candump` at the command prompt for a listing of options.
+### Quitting CAN Forwarding 
+```
+pkill candump
+```
+###  Changing Baudrate
+```
+sudo ip link set can0 down
+sudo ip link set can0 type can bitrate 250000 restart-ms 100
+sudo ip link set can0 up
+```
+### Checking Baudrate
+```
+ip -details -statistics link show can0
+```
+will show the netlink details regarding the connection, which includes the baudrate.
 
 
