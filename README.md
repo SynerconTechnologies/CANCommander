@@ -1,5 +1,5 @@
 # CANCommander
-Scripts and Code to uses the Beaglebone Black as a dual CAN channel tool
+Scripts and Code to uses the Beaglebone Black as a dual CAN channel tool.
 
 The operating system build for the  CANCommander is documented at  https://github.com/Heavy-Vehicle-Networking-At-U-Tulsa/can-man-in-the-middle/blob/master/README.md
 
@@ -170,12 +170,8 @@ exit 0
 Once this file is built, the GPIO pins are enabled after booting and the eDPA can be used as diagnostics software.
 
 ### Blinking the Ethernet LEDs
-Install `inotify-tools`
-```
-sudo apt-get install inotify-tools
-```
 
-The  `ethled.sh`  script in this repository turns on the Ethernet Port LEDs according to the `/sys/class/net` states. The internal LEDs on the BeagleBone are not visible from the outside. It is executed at startup through the rc.local script. To ensure the script is able to run, the following commands need to be executed:
+The  `ethled.sh`  script in this repository turns on the Ethernet Port LEDs according to the `/sys/class/net` states. The internal LEDs on the BeagleBone are not visible from the outside. It is executed at start-up through the rc.local script. To ensure the script is able to run, the following commands need to be executed:
 ```
 cd ~/CANCommander
 chmod 755 ethled.sh
@@ -183,6 +179,12 @@ sudo cp ethled.sh /usr/local/bin/
 ```
 ### Other LEDs (Power and Info)
 The LEDs  on the vehicle interface side are not programmed to mean anything. They are connected to a supplemental microprocessor designed to run a screen on the Forensic Link Adapter. Without the screen and the buttons, the additional microprocessor is not needed and it will light the LEDs arbitrarily during boot. Typically the LEDs will settle on red.
+
+To do a system reboot:
+```
+sudo shutdown -r now
+```
+
 
 ## CAN Forwarding
 A script called `bridgeCANs.sh` uses the bridge features of can-utils.  If an error  `bridge write: No buffer space available` occurs, then  there was an issue forwarding the traffic from one side to another. Check `canbusload`.
@@ -192,6 +194,7 @@ candump -s2 -D -d -B can1 can0&
 ```
 After these commands, both CAN channels should be the same. 
 To learn about the command line switches, simply type `candump` at the command prompt for a listing of options.
+This strategy of bridging may fail after working for a while. 
 ### Quitting CAN Forwarding 
 ```
 pkill candump
@@ -207,5 +210,20 @@ sudo ip link set can0 up
 ip -details -statistics link show can0
 ```
 will show the netlink details regarding the connection, which includes the baudrate.
+## Using Python to Bridge CAN
+A script in the Python3scripts folder has a Python script using the `threading` and `sockets` library. This script can be easily modified with filters and data manipulation as needed.
+```
+cd Python3scripts
+python3 bridgeCAN.py
+```
+Press `Ctrl-C` to exit.
+
+## GitHub
+The CANCommander directory is cloned from https://github.com/SynerconTechnologies/CANCommander.
+To update
+```
+git fetch
+git pull
+```
 
 
