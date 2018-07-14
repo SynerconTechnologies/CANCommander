@@ -2,6 +2,9 @@
 import socket
 import struct
 import os
+import time
+import threading
+
 
 canformat = '<IB3x8s'
 
@@ -55,16 +58,20 @@ CAN_ERR_MASK = 0x1FFFFFFF # /* omit EFF, RTR, ERR flags */
 # CAN_NPROTO  7
 
 
-class CanBridge():
-    def __init__(self, interface_from, interface_to,bitrate_to=250000,bitrate_from=250000):
-        #set CAN bit rates. Must have super user privilages.
-        os.system('ip link set {} down'.format(interface_from))
-        os.system('ip link set {} type can bitrate {}'.format(interface_from, bitrate_from))
-        os.system('ip link set {} up'.format(interface_from))
-        os.system('ip link set {} down'.format(interface_to))
-        os.system('ip link set {} type can bitrate {}'.format(interface_to, bitrate_to))
-        os.system('ip link set {} up'.format(interface_to))
+class CanBridge(threading.Thread):
+    def __init__(self, 
+                 interface_from, 
+                 interface_to,
+                 can_id_to = 0,
+                 can_mask_to = 0,
+                 can_id_from = 0,
+                 can_mask_from = 0):
 
+        super(CanBridge,self).__init__()
+        self.runSignal = True
+        self.message_count = 0
+        self.start_time = time.time()
+        self.duration = 0
         self.canSocket_to = socket.socket(socket.PF_CAN, 
                                           socket.SOCK_RAW, 
                                           socket.CAN_RAW)
@@ -76,23 +83,30 @@ class CanBridge():
         # Set receive filters
         # filter passes when <received_can_id> & mask == can_id & mask
         # by setting the mask to zero, all messages pass. 
-        can_id = 0
-        can_mask = 0
+        
+        #can_id_to = 0
+        #can_mask_to = 0
         # Alternatively, to filter out J1939 Cruise Control/Vehicle Speed messages
         # can_id = 0x00FEF100
         # can_mask = 0x00FFFF00 #Just looks at the PGN of 0xFEF1 = 65265
-        can_filter = struct.pack('LL',can_id,can_mask)
-        
+        can_filter_to = struct.pack('LL',can_id_to,can_mask_to)
         self.canSocket_to.setsockopt(socket.SOL_CAN_RAW, 
                                      socket.CAN_RAW_FILTER,
-                                     can_filter)
+                                     can_filter_to)
         ret_val = self.canSocket_to.getsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_FILTER)
-        print("Socket Option for CAN_RAW_FILTER is set to {}".format(ret_val))
+        print("Socket Option on {} for CAN_RAW_FILTER is set to 0x{:016X}".format(interface_to,ret_val))
+        
+        # can_id_from = 0
+        # can_mask_from = 0
+        # Alternatively, to filter out J1939 Cruise Control/Vehicle Speed messages
+        # can_id = 0x00FEF100
+        # can_mask = 0x00FFFF00 #Just looks at the PGN of 0xFEF1 = 65265
+        can_filter_from = struct.pack('LL',can_id_from,can_mask_from)
         self.canSocket_from.setsockopt(socket.SOL_CAN_RAW, 
                                      socket.CAN_RAW_FILTER,
-                                     can_filter)
+                                     can_filter_from)
         ret_val = self.canSocket_from.getsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_FILTER)
-        print("Socket Option for CAN_RAW_FILTER is set to {}".format(ret_val))
+        print("Socket Option on {} for CAN_RAW_FILTER is set to 0x{:016X}".format(interface_from,ret_val))
         
         # Set the system to receive every possible error
         can_error_filter = struct.pack('L',CAN_ERR_MASK)
@@ -103,16 +117,36 @@ class CanBridge():
                                      socket.CAN_RAW_ERR_FILTER,
                                      can_error_filter)
         ret_val = self.canSocket_to.getsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_ERR_FILTER)
-        print("Socket Option for CAN_RAW_ERR_FILTER is set to {}".format(ret_val))
+        print("Socket Option on {} for CAN_RAW_ERR_FILTER is set to 0x{:08X}".format(interface_to,ret_val))
         
         self.canSocket_from.setsockopt(socket.SOL_CAN_RAW, 
                                      socket.CAN_RAW_ERR_FILTER,
                                      can_error_filter)
         ret_val = self.canSocket_from.getsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_ERR_FILTER)
-        print("Socket Option for CAN_RAW_ERR_FILTER is set to {}".format(ret_val))
+        print("Socket Option on {} for CAN_RAW_ERR_FILTER is set to 0x{:08X}".format(interface_from,ret_val))
         
-        self.interface_from = interface_from
-        self.interface_to = interface_to
+
+        self.canSocket_from.setsockopt(socket.SOL_CAN_RAW, 
+                                       socket.CAN_RAW_LOOPBACK,
+                                       0) # Disbled = 0 
+        ret_val = self.canSocket_from.getsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_LOOPBACK)
+        print("Socket Option on {} for CAN_RAW_LOOPBACK is set to ".format(interface_from), end = "")
+        if ret_val == 0:
+            print("Disabled.")
+        else:
+            print("Enabled.")
+
+        self.canSocket_to.setsockopt(socket.SOL_CAN_RAW, 
+                                     socket.CAN_RAW_LOOPBACK,
+                                     0) # Disbled = 0
+        ret_val = self.canSocket_to.getsockopt(socket.SOL_CAN_RAW, socket.CAN_RAW_LOOPBACK)
+        print("Socket Option on {} for CAN_RAW_LOOPBACK is set to ".format(interface_to), end = "")
+        if ret_val == 0:
+            print("Disabled.")
+        else:
+            print("Enabled.")
+
+
         try: 
             self.canSocket_to.bind((interface_to,))
             self.canSocket_from.bind((interface_from,))
@@ -121,20 +155,13 @@ class CanBridge():
         #put the sockets in blocking mode.
         self.canSocket_to.settimeout(None)
         self.canSocket_from.settimeout(None)
+        self.interface_from = interface_from
+        self.interface_to = interface_to
 
     def run(self, display=False):
-        while True:
+        while self.runSignal:
             raw_bytes = self.canSocket_from.recv(128)
-            try:
-                self.canSocket_to.send(raw_bytes)
-
-            except OSError: #Buffer overflow usually from lack of connection.
-                if display:
-                    print("error writing can.")
-                else:
-                    pass
-            raw_bytes_from = self.canSocket_to.recv(128)
-            rawID,DLC,candata = struct.unpack(canformat,raw_bytes_from)
+            rawID,DLC,candata = struct.unpack(canformat,raw_bytes)
             canID = rawID & 0x1FFFFFFF
             if (rawID & CAN_ERR_FLAG) == CAN_ERR_FLAG:
                 print("Found Error Frame.")
@@ -158,18 +185,62 @@ class CanBridge():
                     print("{:03X}: Bus error. {}".format(canID,candata))
                 elif canID == 0x100:
                     print("Controller restarted")
+
+                if candata[1] == 0x00:
+                    print("Unspecified")
+                elif candata[1] == 0x01:
+                    print("RX buffer overflow")
+                elif candata[1] == 0x02:
+                    print("TX buffer overflow")
+                elif candata[1] == 0x04:
+                    print("Reached warning level for RX errors")
+                elif candata[1] == 0x08:
+                    print("Reached warning level for TX errors")
+                elif candata[1] == 0x10:
+                    print("Reached error-passive status RX")
+                elif candata[1] == 0x20:
+                    print("Reached error-passive status TX")
+
             elif rawID & CAN_RTR_FLAG == CAN_RTR_FLAG:
                 print("Received RTR frame.")
             else:
                 #Normal data frame
+                try:
+                    self.canSocket_to.send(raw_bytes)
+                    self.message_count+=1
+                except OSError: #Buffer overflow usually from lack of connection.
+                    if display:
+                        print("error writing can.")
+                else:
+                    pass
                 if display:   
                     canID = rawID & 0x1FFFFFFF
                     candata_string = " ".join(["{:02X}".format(b) for b in candata])
                     print("{:08X} {}".format(canID, candata_string))
-
+    
+    def change_bitrate(self,interface='can1', bitrate=250000):
+        os.system('ip link set {} down'.format(interface))
+        os.system('ip link set {} type can bitrate {} restart-ms 10'.format(interface, bitrate))
+        os.system('ip link set {} up'.format(interface))
+        
 if __name__ == '__main__':
-    bridge = CanBridge('can0','can1',bitrate_from=250000,bitrate_to=250000)
-    bridge.run()
+    #bridge = CanBridge(from,to)
+    
+    bridge0 = CanBridge('can1','can0')
+    bridge1 = CanBridge('can0','can1')
+    #bridge1.change_bitrate('can0',250000)
+    #bridge1.change_bitrate('can1',250000)
+    bridge0.setDaemon(True) #needed to close the thread when the application closes.
+    bridge1.setDaemon(True) #needed to close the thread when the application closes.
+    bridge0.start()
+    bridge1.start()
+    while True:
+        previous0 = bridge0.message_count 
+        previous1 = bridge1.message_count 
+        time.sleep(1)
+        #print("CAN Message pass rate for J1939 to CAN2: {}".format(bridge0.message_count-previous0))
+        #print("CAN Message pass rate for CAN2 to J1939: {}".format(bridge1.message_count-previous1))
+    
 '''
 https://github.com/torvalds/linux/blob/master/include/uapi/linux/can/error.h
 /*
