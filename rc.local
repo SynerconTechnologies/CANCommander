@@ -1,0 +1,61 @@
+#!/bin/sh -e
+
+#Ethernet LED 1
+if [ ! -e /sys/class/gpio/gpio76/value ]
+then
+  sh -c "echo 76 > /sys/class/gpio/export"
+fi
+sh -c "echo out > /sys/class/gpio/gpio76/direction"
+#Turn on the LED
+sh -c "echo 0 > /sys/class/gpio/gpio76/value"
+#Turn off the LED
+sh -c "echo 1 > /sys/class/gpio/gpio76/value"
+
+
+#Ethernet LED 2
+if [ ! -e /sys/class/gpio/gpio77/value ]
+then
+  sh -c "echo 77 > /sys/class/gpio/export"
+fi
+sh -c "echo out > /sys/class/gpio/gpio77/direction"
+#Turn on the LED
+sh -c "echo 0 > /sys/class/gpio/gpio77/value"
+#Turn off the LED
+sh -c "echo 1 > /sys/class/gpio/gpio77/value"
+
+# Buffer enable (Necessary for all Relays)
+if [ ! -e /sys/class/gpio/gpio117/value ]
+then
+  sh -c "echo 117 > /sys/class/gpio/export"
+fi
+sh -c "echo out > /sys/class/gpio/gpio117/direction"
+sh -c "echo 1 > /sys/class/gpio/gpio117/value"
+ 
+
+#CAN Bypass Relay (Used to connect the eDPA to the Vehicle J1939)
+if [ ! -e /sys/class/gpio/gpio74/value ]
+then
+  sh -c "echo 74 > /sys/class/gpio/export"
+fi
+sh -c "echo out > /sys/class/gpio/gpio74/direction"
+sh -c "echo 1 > /sys/class/gpio/gpio74/value"
+
+#J1708 Bypass Relay
+if [ ! -e /sys/class/gpio/gpio75/value ]
+then
+  sh -c "echo 75 > /sys/class/gpio/export"
+fi
+sh -c "echo out > /sys/class/gpio/gpio75/direction"
+sh -c "echo 1 > /sys/class/gpio/gpio75/value"
+
+
+#Dual CAN switch
+if [ ! -e /sys/class/gpio/gpio70/value ]
+then
+  sh -c "echo 70 > /sys/class/gpio/export"
+fi
+sh -c "echo out > /sys/class/gpio/gpio70/direction"
+sh -c "echo 1 > /sys/class/gpio/gpio70/value"
+
+
+exit 0
